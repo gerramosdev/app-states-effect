@@ -1,131 +1,83 @@
-import { useState } from 'react'
-import './css/App.css'
-import './css/index.css'
+import { useEffect, useState } from "react"
+import "./css/App.css"
+import "./css/index.css"
+import confetti from "canvas-confetti"
+import { Square } from "./components/Square"
+import { TURNS } from "./assets/contants"
+import { checkWinner, checkEndGame } from "./utils/board"
+import { WinnerModal } from "./components/WinnerModal"
+import { saveGameToStorage, resetGameStorage } from "./utils/storage"
 
-const TURNS = {
-  X:'x',
-  O:'o'
-}
-
-
-const Square = ({ children, isSelected, updateBoard, index }) => {
-  const className = `square ${isSelected ? 'is-selected' : ''}`
-
-  const handleClick = () => {
-    updateBoard(index)
-  }
-
-  return (
-    <div onClick={handleClick} className={className}>
-      {children}
-    </div>
-  )
-}
-
-const WINNER_COMBOS = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6]
-]
 function App() {
-  const [board, setBoard] = useState(Array(9).fill(null))
-  const [turn, setTurn] = useState(TURNS.X);
+  const [board, setBoard] = useState(() => {
+    const boardFromStorage = window.localStorage.getItem("board")
+    if (boardFromStorage) return JSON.parse(boardFromStorage)
+    return Array(9).fill(null)
+  })
 
+  const [turn, setTurn] = useState(() => {
+    const turnFromStorage = window.localStorage.getItem("turn")
+    return turnFromStorage || TURNS.X
+  })
   //identificador si hay  un ganador
- const [winner, setWinner] = useState(null);
+  const [winner, setWinner] = useState(null)
 
+  const resetGame = () => {
+    setBoard(Array(9).fill(null))
+    setTurn(TURNS.X)
+    setWinner(null)
 
- const checkWinner = (boardToCheck) => {
-   //recorremos array con las combinaciones ganadoras
-    for (const combo of WINNER_COMBOS) {
-      const [a,b,c] = combo
-      if(
-        boardToCheck[a]&& 
-        boardToCheck[a] === boardToCheck[b] &&
-        boardToCheck[a] === boardToCheck[c]
-        )
-        {
-          return(boardToCheck[a])
-        }
-      }
-    //por si no hay ganador
-    return null
- }
-
+    //eliminar partida guardada en el local storage
+    resetGameStorage()
+  }
   const updateBoard = (index) => {
     //corroborar si ya se hizo una jugada X o O
-    if(board[index] || winner) return
+    if (board[index] || winner) return
 
     //actualizar tablero
-    const newBoard =[...board]
+    const newBoard = [...board]
     newBoard[index] = turn
     setBoard(newBoard)
+
     //cambiar turno
     const newTurn = turn === TURNS.X ? TURNS.O : TURNS.X
     setTurn(newTurn)
+
+    //Guardar partida
+    saveGameToStorage({
+      board: newBoard,
+      turn: newTurn,
+    })
+
     //revisar si ya alguien ganó
     const newWinner = checkWinner(newBoard)
-    if(newWinner) {
-      console.log(newWinner)
-      setWinner(() => {
-        return newWinner
-      })
+    if (newWinner) {
+      confetti()
+      setWinner(newWinner)
+    } else if (checkEndGame(newBoard)) {
+      setWinner(false)
     }
   }
-  
 
   return (
-   <main className='board'>
+    <main className="board">
       <h1>Triqui - Game</h1>
-      <section className='game'>
-        {
-          board.map((square,index)=>{
-            return(
-              <Square
-                key={index}
-                index={index}
-                updateBoard={updateBoard}
-              >
-               {square} 
-              </Square>
-            )
-          })
-        }
+      <button onClick={resetGame}>Reiniciar</button>
+      <section className="game">
+        {board.map((square, index) => {
+          return (
+            <Square key={index} index={index} updateBoard={updateBoard}>
+              {square}
+            </Square>
+          )
+        })}
       </section>
-      <section className='turn'>
-        <Square isSelected={turn === TURNS.X}>
-        {TURNS.X}</Square>
-        <Square isSelected={turn === TURNS.O}>
-        {TURNS.O}</Square>
-
+      <section className="turn">
+        <Square isSelected={turn === TURNS.X}>{TURNS.X}</Square>
+        <Square isSelected={turn === TURNS.O}>{TURNS.O}</Square>
       </section>
-      {
-        winner  !== null && (
-          <section className='winner'>
-            <div className='text'>
-              <h2>
-                {
-                  winner === false ? 'Empate':'Ganó:'
-                }
-              </h2>
-              <header className='win'>
-                {winner && <Square>{winner}</Square>}
-              </header>
-              
-              <footer>
-                <button>Empezar de nuevo</button>
-              </footer>
-            </div>
-
-          </section>
-        )
-      }
-   </main>
+      <WinnerModal resetGame={resetGame} winner={winner} />
+    </main>
   )
 }
 
